@@ -1,0 +1,7 @@
+gradio>=4.0.0gradio>=4.0.0
+langgraph-sdk
+python-dotenv
+langchain
+langchain-openai
+langchain-core
+typing-extensions
