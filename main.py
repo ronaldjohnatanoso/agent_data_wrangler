@@ -1,45 +1,28 @@
-import gradio as gr
+from langgraph_sdk import get_sync_client
 
-# Global list to store blocks
-blocks = []
+client = get_sync_client(url="http://localhost:2024")
 
-def add_block():
-    """Add a new simple block"""
-    block_num = len(blocks) + 1
-    blocks.append(f"Block #{block_num}: Your text here...")
-    return blocks
+def format_message(data):
+    for message in data.get('messages', []):
+        role = message.get('type', 'unknown').capitalize()
+        content = message.get('content', '[No content]')
+        if role == 'Human':
+            print(f"human: {content}")
+        elif role == 'Ai':
+            print(f"ai: {content}")
+        else:
+            print(f"other ({role}): {content}")
 
-def clear_blocks():
-    """Clear all blocks"""
-    global blocks
-    blocks = []
-    return blocks
-
-# Create simple interface
-with gr.Blocks() as demo:
-    gr.Markdown("# Simple Block Generator")
-    
-    add_btn = gr.Button("Add Block")
-    clear_btn = gr.Button("Clear All")
-    
-    # Display blocks as a simple list
-    block_display = gr.Textbox(
-        label="Blocks",
-        lines=10,
-        interactive=False,
-        value=""
-    )
-    
-    # Button handlers
-    add_btn.click(
-        fn=lambda: "\n\n".join(add_block()),
-        outputs=block_display
-    )
-    
-    clear_btn.click(
-        fn=lambda: "\n\n".join(clear_blocks()),
-        outputs=block_display
-    )
-
-if __name__ == "__main__":
-    demo.launch()
+for chunk in client.runs.stream(
+    None,  # Thread ID set to "1"
+    "agent", # Name of assistant. Defined in langgraph.json.
+    input={
+        "messages": [{
+            "role": "human",
+            "content": "Who killed magellan?",
+        }],
+    },
+    stream_mode="values",
+):
+    format_message(chunk.data)
+    print("\n")
