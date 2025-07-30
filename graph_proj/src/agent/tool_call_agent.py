@@ -22,7 +22,6 @@ class State(TypedDict):
     code_to_execute: str | None
     execution_result: dict | None
     summary: str | None
-    basic_info: dict | None
 
 # Initialize the chat model
 llm = init_chat_model(model="openai:gpt-4o-mini", temperature=0.7)
@@ -68,79 +67,44 @@ def init_csv_path(state: State):
         if not os.path.exists(csv_path):
             raise FileNotFoundError(f"CSV file not found: {csv_path}") 
         state["csv_path"] = csv_path
-        state["basic_info"] = None  # Initialize basic_info as None
     return state
 
 def summarizer_node(state: State):
     """
-    Main director node for CSV analysis. 
-    1. If execution_result has action 'store_basic_info': store its data to basic_info.
-    2. If basic_info missing: prompt LLM for basic info code (must output action {"action": "store_basic_info"} with info).
-    3. If basic_info exists: prompt LLM for deeper analysis using pandas (nulls, outliers, etc.), with context.
+    Main director node for CSV analysis.
+    Uses only message (and appended execution result) history as context for reasoning.
+    No 'store_basic_info', just iterative code analysis/refinement.
     """
-    import json
-
     csv_path = state.get("csv_path", "")
-    basic_info = state.get("basic_info", None)
-    execution_result = state.get("execution_result", None)
     messages = state.get("messages", [])
+    execution_result = state.get("execution_result", None)
 
-    # 1. If tool just ran and possibly gave us new basic_info, detect and store it
-    if execution_result and isinstance(execution_result, dict):
-        stdout = execution_result.get("stdout", "")
-        captured = None
-        try:
-            # Try parsing stdout as a dict
-            if isinstance(stdout, str) and "action" in stdout and "store_basic_info" in stdout:
-                captured = json.loads(stdout)
-            elif isinstance(stdout, dict):  # rare case: direct dict
-                captured = stdout
-        except Exception:
-            pass
-        if captured and captured.get("action") == "store_basic_info":
-            return {
-                "messages": messages,
-                "basic_info": captured
-            }
+    # If there's an execution_result to append, add it as a message in history
+    # We wrap it as an AIMessage for LLM visibility; user code can customize the structure if wanted
+    if execution_result is not None:
+        exec_message = AIMessage(content=str(execution_result))
+        messages = messages + [exec_message]
 
-    # 2. If basic_info does NOT exist, prompt for basic info code with action signal at end
-    if not basic_info:
-        system_message = SystemMessage(
-            content=(
-                f"You are a CSV analyzer. To begin, write pandas Python code that extracts:"
-                "\n  - The column names\n  - Total row/column counts\n  - Data types per column"
-                "\n  - A sample of 10 rows\n  - Any basic null/missing/obvious anomaly stats"
-                "\nAt the end, print as a single JSON dict like this:"
-                '\n  {"action": "store_basic_info", "columns":[...],"dtypes":{...},"shape":[...],"sample":[...], ...}'
-                "\nOnly print this JSON dict to stdout!"
-                f"\nThe CSV path is: {csv_path}"
-            )
-        )
-        human_message = HumanMessage(content="Extract CSV basic info and emit the JSON dict as described.")
-        response = llm_with_tools.invoke([system_message, human_message])
-        return {
-            "messages": messages + [response],
-            "basic_info": None
-        }
-
-    # 3. If basic_info exists, move to more advanced analysis
+    # Summarizer always analyzes whole conversation + execution results so far
     system_message = SystemMessage(
         content=(
-            f"You are a CSV data analyst. Using the existing basic info:"
-            f"\n{basic_info}"
-            "\nNow, analyze the data further in Python using pandas. Write code to:"
-            "\n- Detect/quantify missing values"
-            "\n- Identify outliers/numerical anomalies"
-            "\n- Highlight notable statistics or trends"
-            "\nPresent your findings with print statements, but do not re-extract basic info."
-            f"\nThe CSV file location: {csv_path}."
+            f"You are a CSV analyst operating interactively. "
+            f"Your job is to reason through the history provided. "
+            f"Write Python (pandas) code to: "
+            "- Identify and summarize columns, row/column counts, data types, nulls, and anomalies; "
+            "- Sample 10 rows, high-level nulls, and stats; "
+            "- When these are known, proceed to more advanced/exploratory analysis (outliers, trends, etc). "
+            "At every turn, print findings and only generate the code actually needed to progress further. "
+            f"The CSV path is: {csv_path}\n"
+            "IMPORTANT: Only use variables that you define in the code you generate. Do NOT print variables such as 'summary' unless you have actually created them in your code. Make all code self-contained."
+            "\nOutput code for the next needed step."
         )
     )
-    human_message = HumanMessage(content="Do a deeper exploratory analysis (nulls, outliers, weird stats, trends, etc).")
-    response = llm_with_tools.invoke([system_message, human_message])
+    human_message = HumanMessage(content="Analyze the CSV file and, if needed, write code for further analysis.")
+
+    response = llm_with_tools.invoke([system_message] + messages + [human_message])
     return {
-        "messages": messages + [response],
-        "basic_info": basic_info
+        "messages": messages + [response]
     }
     
 
