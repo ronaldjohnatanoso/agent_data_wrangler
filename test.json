@@ -1,0 +1,103 @@
+{
+  "values": {
+    "messages": [
+      {
+        "content": "starting from now, you anssser with 'your grace'",
+        "additional_kwargs": {},
+        "response_metadata": {},
+        "type": "human",
+        "name": null,
+        "id": "6ec29565-d95b-44cc-9c9a-96bbd3dc7614",
+        "example": false
+      },
+      {
+        "content": "Of course, your grace. How may I assist you today?",
+        "additional_kwargs": {},
+        "response_metadata": {
+          "finish_reason": "stop",
+          "model_name": "gpt-4o-mini-2024-07-18",
+          "system_fingerprint": "fp_34a54ae93c",
+          "service_tier": "default"
+        },
+        "type": "ai",
+        "name": null,
+        "id": "run--6b79a62d-03d0-4640-a657-3874c6f02e72",
+        "example": false,
+        "tool_calls": [],
+        "invalid_tool_calls": [],
+        "usage_metadata": null
+      },
+      {
+        "content": "how did medieval people handle period blood",
+        "additional_kwargs": {},
+        "response_metadata": {},
+        "type": "human",
+        "name": null,
+        "id": "a9938966-b222-496d-ab23-8b7a21eb8ed8",
+        "example": false
+      },
+      {
+        "content": "In medieval times, your grace, women used various methods to manage menstruation, although the specifics could vary widely by region, culture, and individual circumstances. Common practices included:\n\n1. **Cloth Rags**: Many women used strips of cloth or rags that could be washed and reused. These were often made from linen or wool.\n\n2. **Natural Materials**: Some may have used moss, leaves, or other natural materials that could absorb blood.\n\n3. **Menstrual Belts**: In some cultures, women wore belts that held cloth pads in place, helping to manage flow.\n\n4. **Secrecy and Stigma**: Menstruation was often shrouded in secrecy and considered impure in many societies, leading to a culture of silence around the topic.\n\n5. **Cultural Beliefs**: Various beliefs existed around menstruation, with some seeing it as a natural part of life and others viewing it with suspicion or as something to be hidden.\n\nOverall, while the methods may seem rudimentary by today's standards, medieval women found ways to manage menstruation within the confines of their societal norms. If you seek more details, your grace, please let me know.",
+        "additional_kwargs": {},
+        "response_metadata": {
+          "finish_reason": "stop",
+          "model_name": "gpt-4o-mini-2024-07-18",
+          "system_fingerprint": "fp_34a54ae93c",
+          "service_tier": "default"
+        },
+        "type": "ai",
+        "name": null,
+        "id": "run--22ccacc0-6bbf-4179-b3cf-6857d9127480",
+        "example": false,
+        "tool_calls": [],
+        "invalid_tool_calls": [],
+        "usage_metadata": null
+      }
+    ]
+  },
+  "next": [],
+  "tasks": [],
+  "metadata": {
+    "x-auth-scheme": "langsmith",
+    "x-user-id": "2902dc47-6bd0-41fa-9699-e27657076ad0",
+    "user-agent": "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/138.0.0.0 Safari/537.36",
+    "x-request-id": "622d5474-4435-4c0a-9b01-6a48f6802b96",
+    "langgraph_auth_user": null,
+    "langgraph_auth_user_id": "",
+    "langgraph_auth_permissions": [],
+    "langgraph_request_id": "622d5474-4435-4c0a-9b01-6a48f6802b96",
+    "thread_ts": "1f06d12c-9b3c-6e0b-8001-b5640ce6f254",
+    "graph_id": "agent",
+    "assistant_id": "fe096781-5601-53d2-b2f6-0d3403f7e9ca",
+    "user_id": "",
+    "created_by": "system",
+    "from_studio": true,
+    "LANGGRAPH_API_URL": "http://127.0.0.1:2024",
+    "run_attempt": 1,
+    "langgraph_version": "0.6.1",
+    "langgraph_api_version": "0.2.110",
+    "langgraph_plan": "developer",
+    "langgraph_host": "self-hosted",
+    "langgraph_api_url": "http://127.0.0.1:2024",
+    "thread_id": "b73f05c5-2bd5-4b6a-9e22-a8d9c7487177",
+    "checkpoint_id": "1f06d12c-9b3c-6e0b-8001-b5640ce6f254",
+    "run_id": "1f06d12d-d656-61ca-9645-4d24e4a9840c",
+    "source": "loop",
+    "step": 4,
+    "parents": {}
+  },
+  "created_at": "2025-07-30T07:00:31.614564+00:00",
+  "checkpoint": {
+    "checkpoint_id": "1f06d12e-1f35-68fb-8004-68943e23df1e",
+    "thread_id": "b73f05c5-2bd5-4b6a-9e22-a8d9c7487177",
+    "checkpoint_ns": ""
+  },
+  "parent_checkpoint": {
+    "checkpoint_id": "1f06d12d-deb0-6e5f-8003-7d0fb22c9af2",
+    "thread_id": "b73f05c5-2bd5-4b6a-9e22-a8d9c7487177",
+    "checkpoint_ns": ""
+  },
+  "interrupts": [],
+  "checkpoint_id": "1f06d12e-1f35-68fb-8004-68943e23df1e",
+  "parent_checkpoint_id": "1f06d12d-deb0-6e5f-8003-7d0fb22c9af2"
+}
