@@ -72,60 +72,77 @@ def init_csv_path(state: State):
     return state
 
 def summarizer_node(state: State):
+    """
+    Main director node for CSV analysis. 
+    1. If execution_result has action 'store_basic_info': store its data to basic_info.
+    2. If basic_info missing: prompt LLM for basic info code (must output action {"action": "store_basic_info"} with info).
+    3. If basic_info exists: prompt LLM for deeper analysis using pandas (nulls, outliers, etc.), with context.
+    """
+    import json
+
     csv_path = state.get("csv_path", "")
     basic_info = state.get("basic_info", None)
-    current_messages = state.get("messages", [])
+    execution_result = state.get("execution_result", None)
+    messages = state.get("messages", [])
 
-    # If basic_info already exists, let the LLM know to avoid re-requesting
-    if basic_info is not None:
+    # 1. If tool just ran and possibly gave us new basic_info, detect and store it
+    if execution_result and isinstance(execution_result, dict):
+        stdout = execution_result.get("stdout", "")
+        captured = None
+        try:
+            # Try parsing stdout as a dict
+            if isinstance(stdout, str) and "action" in stdout and "store_basic_info" in stdout:
+                captured = json.loads(stdout)
+            elif isinstance(stdout, dict):  # rare case: direct dict
+                captured = stdout
+        except Exception:
+            pass
+        if captured and captured.get("action") == "store_basic_info":
+            return {
+                "messages": messages,
+                "basic_info": captured
+            }
+
+    # 2. If basic_info does NOT exist, prompt for basic info code with action signal at end
+    if not basic_info:
         system_message = SystemMessage(
-            content=f"""You are a CSV file analyzer. You will analyze the CSV file at: {csv_path}
-
-            Basic info has already been extracted and stored. Use or refer to this info when answering follow-up requests. Don't repeat code that fetches basic information again unless specifically asked for it.
-
-            BASIC INFO STATE:
-            {basic_info}
-
-            Continue handling the analysis from here based on user queries or the previous context."""
+            content=(
+                f"You are a CSV analyzer. To begin, write pandas Python code that extracts:"
+                "\n  - The column names\n  - Total row/column counts\n  - Data types per column"
+                "\n  - A sample of 10 rows\n  - Any basic null/missing/obvious anomaly stats"
+                "\nAt the end, print as a single JSON dict like this:"
+                '\n  {"action": "store_basic_info", "columns":[...],"dtypes":{...},"shape":[...],"sample":[...], ...}'
+                "\nOnly print this JSON dict to stdout!"
+                f"\nThe CSV path is: {csv_path}"
+            )
         )
-    else:
-        system_message = SystemMessage(
-            content=f"""You are a CSV file analyzer. You will analyze the CSV file at: {csv_path}
-            
-            Your task is to:
-            1. Write Python code using pandas to explore the CSV file
-            2. Analyze columns, data types, sample data, and basic statistics
-            3. Use print() statements sparingly to show key insights
-            4. The code will be executed by a tool, so make it clean and functional
-            
-            Start by reading the CSV file and showing basic information about it."""
+        human_message = HumanMessage(content="Extract CSV basic info and emit the JSON dict as described.")
+        response = llm_with_tools.invoke([system_message, human_message])
+        return {
+            "messages": messages + [response],
+            "basic_info": None
+        }
+
+    # 3. If basic_info exists, move to more advanced analysis
+    system_message = SystemMessage(
+        content=(
+            f"You are a CSV data analyst. Using the existing basic info:"
+            f"\n{basic_info}"
+            "\nNow, analyze the data further in Python using pandas. Write code to:"
+            "\n- Detect/quantify missing values"
+            "\n- Identify outliers/numerical anomalies"
+            "\n- Highlight notable statistics or trends"
+            "\nPresent your findings with print statements, but do not re-extract basic info."
+            f"\nThe CSV file location: {csv_path}."
         )
-    
-    # Initialize messages if empty or add to existing
-    if not current_messages:
-        human_message = HumanMessage(content=f"Please analyze the CSV file at {csv_path} and provide Python code to explore its contents.")
-        messages = [system_message, human_message]
-    else:
-        messages = current_messages
-
-    response = llm_with_tools.invoke(messages)
-    updated_messages = current_messages + [response]
-
-    # Store basic_info only after getting a successful execution_result and it's not set yet
-    new_basic_info = None
-
-    if basic_info is None:
-        exec_result = state.get("execution_result")
-        if exec_result and isinstance(exec_result, dict) and exec_result.get("success"):
-            # Store stdout or fallback to stderr as the basic info
-            new_basic_info = exec_result.get("stdout", "") or exec_result.get("stderr", "")
-
-    next_basic_info = basic_info or new_basic_info
-
+    )
+    human_message = HumanMessage(content="Do a deeper exploratory analysis (nulls, outliers, weird stats, trends, etc).")
+    response = llm_with_tools.invoke([system_message, human_message])
     return {
-        "messages": updated_messages,
-        "basic_info": next_basic_info if next_basic_info else None
+        "messages": messages + [response],
+        "basic_info": basic_info
     }
+    
 
 def should_continue(state: State):
     """Determine if we should continue to tools or end."""
