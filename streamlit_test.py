@@ -25,8 +25,18 @@ with col2:
 # Add a horizontal divider for separation
 st.markdown("---")
 
+# Define a function to handle input changes and print the block label
+def on_input_change(label):
+    # This function gets called when a user presses Enter in a text input
+    st.write(f"Block identifier: {label}")
+
 # Loop through each block in the session state and dynamically render the UI
 for block in st.session_state.blocks:
     with st.container():
         # Display a text input for each block using its label as the key
-        st.text_input(block["label"], key=block["label"])
+        st.text_input(
+            block["label"], 
+            key=block["label"], 
+            on_change=on_input_change, 
+            args=(block["label"],)  # Pass the block's label to the callback function
+        )
