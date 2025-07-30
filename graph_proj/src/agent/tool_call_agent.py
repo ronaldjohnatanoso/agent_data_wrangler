@@ -94,8 +94,14 @@ def summarizer_node(state: State):
         exec_message = AIMessage(content=feedback)
         messages = messages + [exec_message]
 
-    # Summarizer always analyzes conversation + execution results so far,
-    # Prompt the LLM to pay special attention to failures, and always correct code before retrying!
+    # If previous execution_result was successful, do NOT re-call the tool, just summarize and finish.
+    if execution_result is not None and execution_result.get("success"):
+        # Summarize the result to user or just END workflow; here, just append message and END.
+        return {
+            "messages": messages
+        }
+
+    # If we reach here, either no execution yet or last execution had error; prompt for code/tool-call.
     system_message = SystemMessage(
         content=(
             f"You are a CSV analyst subprocess. "
@@ -106,6 +112,9 @@ def summarizer_node(state: State):
             "Strictly avoid any plotting or data visualization commands."
             f"\nCSV path: {csv_path}"
             "\n\nIMPORTANT:"
+            "\n- For all print statements, always use a SINGLE, one-line print statement per value. NEVER use '\\n' inside string literals, and NEVER use multi-line strings or triple quotes. For each statistic, use code like: print('Columns:', df.columns.tolist()), print('Number of Rows:', df.shape[0]) and so on."
+            "\n- Do not join labels and output with newlines. For example, instead of print('Basic statistics:\\n', df.describe()), always use print('Basic statistics:', df.describe()) or similar."
+            "\n- DO NOT use triple-quoted strings or f-strings that span multiple lines inside print. Print each output and its label as a single expression."
             "\n- If code execution fails or returns an error message, carefully review any error output and fix your code before retrying (never repeat unrevised code, always correct mistakes or syntax as indicated by the error message)."
             "\n- ONLY call the execute_python_code tool when producing code for execution. Do NOT output a code block or direct text to the user, and do NOT repeat previous code if it has already failed."
             "\n- If there is an execution error, always explain the root cause to yourself before writing the corrected code."
@@ -124,9 +133,14 @@ def should_continue(state: State):
     messages = state.get("messages", [])
     if not messages:
         return END
-        
+
+    # Only run tool if last message requests tool AND previous execution isn't already successful
     last_message = messages[-1]
-    if hasattr(last_message, 'tool_calls') and last_message.tool_calls:
+    execution_result = state.get("execution_result", None)
+    if (hasattr(last_message, 'tool_calls')
+        and last_message.tool_calls
+        and not (execution_result is not None and execution_result.get("success"))
+    ):
         return "tools"
     return END
 
@@ -135,6 +149,7 @@ tool_node = ToolNode(tools)
 graph_builder.add_node("init_csv_path", init_csv_path)  
 graph_builder.add_node("summarizer", summarizer_node)
 graph_builder.add_node("tools", tool_node)
+# After one tool execution, always halt (END).
 
 graph_builder.add_edge(START, "init_csv_path")  
 graph_builder.add_edge("init_csv_path", "summarizer")  
