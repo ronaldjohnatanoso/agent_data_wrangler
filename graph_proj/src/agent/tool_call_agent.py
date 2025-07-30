@@ -79,28 +79,39 @@ def summarizer_node(state: State):
     messages = state.get("messages", [])
     execution_result = state.get("execution_result", None)
 
-    # If there's an execution_result to append, add it as a message in history
-    # We wrap it as an AIMessage for LLM visibility; user code can customize the structure if wanted
+    # If there's an execution_result to append, add it as a structured message in history
     if execution_result is not None:
-        exec_message = AIMessage(content=str(execution_result))
+        # Provide very explicit output & error separation as an AI message for the LLM
+        if execution_result.get("success"):
+            feedback = (
+                f"Execution succeeded.\nSTDOUT:\n{execution_result.get('stdout','')}\n"
+            )
+        else:
+            feedback = (
+                f"Execution failed.\nSTDOUT:\n{execution_result.get('stdout','')}\nSTDERR:\n{execution_result.get('stderr','')}\n"
+                "You MUST analyze the error, correct your previous code, and only call execute_python_code with the FIXED version. Never repeat bad code."
+            )
+        exec_message = AIMessage(content=feedback)
         messages = messages + [exec_message]
 
-    # Summarizer always analyzes whole conversation + execution results so far
+    # Summarizer always analyzes conversation + execution results so far,
+    # Prompt the LLM to pay special attention to failures, and always correct code before retrying!
     system_message = SystemMessage(
         content=(
-            f"You are a CSV analyst operating interactively. "
-            f"Your job is to reason through the history provided. "
-            f"Write Python (pandas) code to: "
-            "- Identify and summarize columns, row/column counts, data types, nulls, and anomalies; "
-            "- Sample 10 rows, high-level nulls, and stats; "
-            "- When these are known, proceed to more advanced/exploratory analysis (outliers, trends, etc). "
-            "At every turn, print findings and only generate the code actually needed to progress further. "
-            f"The CSV path is: {csv_path}\n"
-            "IMPORTANT: Only use variables that you define in the code you generate. Do NOT print variables such as 'summary' unless you have actually created them in your code. Make all code self-contained."
-            "\nOutput code for the next needed step."
+            f"You are a CSV analyst subprocess. "
+            f"Your ONLY permitted libraries are pandas and numpy (no plotting, visualization, seaborn, matplotlib, etc). "
+            f"Every code you generate must be a FULL, standalone script: always import pandas as pd (and numpy if needed), and load the CSV file from '{csv_path}' into a DataFrame named df at the start."
+            " Do NOT assume any variables exist unless you explicitly create them in each output."
+            "\nYour task is ONLY to explore the basic shape of the CSV: print the columns, print the number of rows and columns, print df.head(5), show df.dtypes, print basic statistics with df.describe(), and print counts of missing/null values per column. Do not do feature engineering, wrangling, or advanced analysis. "
+            "Strictly avoid any plotting or data visualization commands."
+            f"\nCSV path: {csv_path}"
+            "\n\nIMPORTANT:"
+            "\n- If code execution fails or returns an error message, carefully review any error output and fix your code before retrying (never repeat unrevised code, always correct mistakes or syntax as indicated by the error message)."
+            "\n- ONLY call the execute_python_code tool when producing code for execution. Do NOT output a code block or direct text to the user, and do NOT repeat previous code if it has already failed."
+            "\n- If there is an execution error, always explain the root cause to yourself before writing the corrected code."
         )
     )
-    human_message = HumanMessage(content="Analyze the CSV file and, if needed, write code for further analysis.")
+    human_message = HumanMessage(content="Analyze the CSV file and, if needed, write code for further analysis. If required, call the execute_python_code tool.")
 
     response = llm_with_tools.invoke([system_message] + messages + [human_message])
     return {
