@@ -22,6 +22,7 @@ class State(TypedDict):
     code_to_execute: str | None
     execution_result: dict | None
     summary: str | None
+    analysis_trace: list  # just a plain list now, updated by nodes
 
 # Initialize the chat model
 llm = init_chat_model(model="openai:gpt-4o-mini", temperature=0.7)
@@ -78,8 +79,10 @@ def summarizer_node(state: State):
     csv_path = state.get("csv_path", "")
     messages = state.get("messages", [])
     execution_result = state.get("execution_result", None)
+    analysis_trace = state.get("analysis_trace", [])
 
-    # If there's an execution_result to append, add it as a structured message in history
+    # If there's an execution_result to append, add it as a structured message in history,
+    # (Only update messages and feedback here, NOT analysis_trace. The tool node already records stdout.)
     if execution_result is not None:
         # Provide very explicit output & error separation as an AI message for the LLM
         if execution_result.get("success"):
@@ -94,11 +97,21 @@ def summarizer_node(state: State):
         exec_message = AIMessage(content=feedback)
         messages = messages + [exec_message]
 
-    # If previous execution_result was successful, do NOT re-call the tool, just summarize and finish.
+    # If previous execution_result was successful, summarize the result and stop (no PDF)
     if execution_result is not None and execution_result.get("success"):
-        # Summarize the result to user or just END workflow; here, just append message and END.
+        # Optionally ask the LLM to summarize findings in text, or just append as is
+        stats_text = execution_result.get("stdout", "")
+        findings_prompt = (
+            "Given the following CSV analysis output, write a concise (no more than 3-5 sentences), professional summary (plain text, no PDF, no markup). "
+            "Only state the most important findings, missing values, and data characteristics. Be brief, skip unnecessary filler, and avoid lengthy explanations.\n\n"
+            f"{stats_text}"
+        )
+        findings = llm.invoke([HumanMessage(content=findings_prompt)]).content
+        analysis_trace = analysis_trace + [{"type": "analysis", "content": findings}]
+        final_message = AIMessage(content=findings)
         return {
-            "messages": messages
+            "messages": messages + [final_message],
+            "analysis_trace": analysis_trace
         }
 
     # If we reach here, either no execution yet or last execution had error; prompt for code/tool-call.
@@ -124,7 +137,8 @@ def summarizer_node(state: State):
 
     response = llm_with_tools.invoke([system_message] + messages + [human_message])
     return {
-        "messages": messages + [response]
+        "messages": messages + [response],
+        "analysis_trace": analysis_trace
     }
     
 
@@ -134,17 +148,47 @@ def should_continue(state: State):
     if not messages:
         return END
 
-    # Only run tool if last message requests tool AND previous execution isn't already successful
     last_message = messages[-1]
     execution_result = state.get("execution_result", None)
-    if (hasattr(last_message, 'tool_calls')
-        and last_message.tool_calls
-        and not (execution_result is not None and execution_result.get("success"))
-    ):
+    # Allow tool calls if present (even if prev execution was successful, since that may be for PDF next)
+    if hasattr(last_message, 'tool_calls') and last_message.tool_calls:
         return "tools"
     return END
 
-tool_node = ToolNode(tools)
+def tool_node_with_analysis_trace(state: State):
+    """
+    Executes the tool (assumes only 'execute_python_code' will be called) and updates analysis_trace in the state.
+    """
+    messages = state.get("messages", [])
+    analysis_trace = state.get("analysis_trace", []) if "analysis_trace" in state else []
+    execution_result = None
+
+    # Find the last message and its tool call
+    last_message = messages[-1] if messages else None
+    tool_call = None
+    if last_message and hasattr(last_message, 'tool_calls'):
+        for call in last_message.tool_calls:
+            if call.get("name") == "execute_python_code":
+                tool_call = call
+                break
+
+    # Run the tool and update state, including analysis_trace
+    if tool_call:
+        args = tool_call.get("args", {})
+        code = args.get("code")
+        execution_result = execute_python_code(code)
+        if execution_result and execution_result.get("stdout"):
+            analysis_trace = analysis_trace + [{"type": "stdout", "content": execution_result.get("stdout", "")}]
+    else:
+        execution_result = None  # Defensive
+
+    return {
+        **state,
+        "execution_result": execution_result,
+        "analysis_trace": analysis_trace,
+    }
+
+tool_node = tool_node_with_analysis_trace
 
 graph_builder.add_node("init_csv_path", init_csv_path)  
 graph_builder.add_node("summarizer", summarizer_node)
