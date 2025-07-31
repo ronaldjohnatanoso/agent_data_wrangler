@@ -104,6 +104,7 @@ def summarizer_node(state: State):
             " Do NOT assume any variables exist unless you explicitly create them in each output."
             "\nYour task is ONLY to explore the basic shape of the CSV: print the columns, print the number of rows and columns, print df.head(5), show df.dtypes, print basic statistics with df.describe(), and print counts of missing/null values per column. Do not do feature engineering, wrangling, or advanced analysis. "
             "Strictly avoid any plotting or data visualization commands."
+            "\nIMPORTANT: Ensure all print statements are single-line statements."
             f"\nCSV path: {csv_path}"
             "\n\nIMPORTANT:"
             "\n- If code execution fails or returns an error message, carefully review any error output and fix your code before retrying (never repeat unrevised code, always correct mistakes or syntax as indicated by the error message)."
