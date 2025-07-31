@@ -24,7 +24,7 @@ class State(TypedDict):
     summary: str | None
 
 # Initialize the chat model
-llm = init_chat_model(model="openai:gpt-4o-mini", temperature=0.7)
+llm = init_chat_model(model="openai:gpt-4o", temperature=0.7)
 
 @tool
 def execute_python_code(code: str) -> dict:
@@ -71,9 +71,9 @@ def init_csv_path(state: State):
 
 def summarizer_node(state: State):
     """
-    Main director node for CSV analysis.
-    Uses only message (and appended execution result) history as context for reasoning.
-    No 'store_basic_info', just iterative code analysis/refinement.
+    Main director node for CSV analysis and intelligent cleaning.
+    Uses message and execution result history as context for reasoning.
+    Now supports iterative code analysis, cleaning, and DataFrame mutation.
     """
     csv_path = state.get("csv_path", "")
     messages = state.get("messages", [])
@@ -94,28 +94,40 @@ def summarizer_node(state: State):
         exec_message = AIMessage(content=feedback)
         messages = messages + [exec_message]
 
-    # Summarizer always analyzes conversation + execution results so far,
-    # Prompt the LLM to pay special attention to failures, and always correct code before retrying!
+    # Enhanced system prompt for robust cleaning and mutation
     system_message = SystemMessage(
         content=(
             f"You are a CSV analyst subprocess. "
             f"Your ONLY permitted libraries are pandas and numpy (no plotting, visualization, seaborn, matplotlib, etc). "
             f"Every code you generate must be a FULL, standalone script: always import pandas as pd (and numpy if needed), and load the CSV file from '{csv_path}' into a DataFrame named df at the start."
             " Do NOT assume any variables exist unless you explicitly create them in each output."
-            "\nYour task is to analyze, examine, and, if necessary, intelligently mutate the CSV file. "
-            "You can decide to remove rows with null values, fill gaps with mean/median values, or handle outliers. "
-            "If you decide to mutate the DataFrame, save a '_clean' version of the original CSV in the same directory before proceeding."
-            "\nEvery Python code you generate must be a standalone script that can be executed independently without relying on any external context."
-            "\nWhen mutating the DataFrame, always explain your reasoning and the specific operation you are performing. "
-            "For example, if you are filling null values, specify the column and the method (e.g., mean, median). If removing outliers, explain the criteria used."
-            "\nIMPORTANT: Ensure all print statements are single-line statements."
-            f"\nCSV path: {csv_path}"
+            "\n\nEach Python code you generate must be a fully standalone script, with all necessary imports and CSV loading included."
+            "\n\nYour task is to:"
+            "\n- Explore the basic shape of the CSV: print the columns, print the number of rows and columns, print df.head(5), show df.dtypes, print basic statistics with df.describe(), and print counts of missing/null values per column."
+            "\n- Intelligently decide if the data needs cleaning: for example, if there are missing values, decide whether to drop rows, fill with mean/median/mode, or otherwise impute. If there are outliers, consider removing or capping them. Justify your cleaning choices in your reasoning."
+            "\n- If you decide to mutate the DataFrame (e.g., by cleaning, filling, or dropping data), you MUST save the cleaned DataFrame to a new CSV file in the same directory as the original, with '_clean' appended before the '.csv' extension (e.g., 'dirty_clean.csv'). Never overwrite the original file."
+            "\n- After each mutation, always reload the DataFrame from the latest clean CSV for further analysis or cleaning."
+            "\n- Continue iterative analysis and cleaning until you are satisfied with the data quality."
+            "\n- All print statements must output only a single line (no multi-line prints)."
+            "\n- Do NOT repeat code or outputs that have already been executed or printed. Keep track of what you have already analyzed or displayed, and only perform new actions or move on to the next step."
+            "\n- Do NOT repeat the initial exploration (columns, shape, head, dtypes, describe, null counts) if it has already been done; proceed to cleaning or further analysis."
+            "\n- Do NOT repeat code that has already failed or been executed. Only retry if you have revised the code based on the error."
+            "\n- If a task is completed or cannot be fixed after a reasonable attempt, move on to the next logical step or finish."
             "\n\nIMPORTANT:"
-            "\n- If code execution fails or returns an error message, carefully review any error output and fix your code before retrying (never repeat unrevised code, always correct mistakes or syntax as indicated by the error message)."
+            "\n- If code execution fails or returns an error message (from either stdout or stderr), carefully review any error output and fix your code before retrying (never repeat unrevised code, always correct mistakes or syntax as indicated by the error message)."
             "\n- ONLY call the execute_python_code tool when producing code for execution. Do NOT output a code block or direct text to the user, and do NOT repeat previous code if it has already failed."
+            "\n- If there is an execution error, always explain the root cause to yourself before writing the corrected code."
+            "\n- Never use plotting or visualization commands."
+            f"\nCSV path: {csv_path}"
         )
     )
-    human_message = HumanMessage(content="Analyze the CSV file, examine its structure, and, if necessary, mutate it intelligently. If required, call the execute_python_code tool.")
+    human_message = HumanMessage(
+        content=(
+            "Analyze the CSV file, decide if cleaning or mutation is needed, and if so, write code to perform it. "
+            "If you mutate the DataFrame, always save to a new '_clean' CSV and reload from it. "
+            "If required, call the execute_python_code tool."
+        )
+    )
 
     response = llm_with_tools.invoke([system_message] + messages + [human_message])
     return {
