@@ -120,7 +120,9 @@ def summarizer_node(state: State):
             for call in getattr(msg, "tool_calls", []):
                 if getattr(call, "name", None) == "create_report":
                     # Report has been created, summarizer should exit
-                    return {"messages": messages}
+                    # Mark the state as "satisfied" to help should_continue exit
+                    state["summary"] = "report_created"
+                    return {"messages": messages, "summary": "report_created"}
 
     # System prompt: restrict to cleaning only, and require a report at the end
     system_message = SystemMessage(
@@ -167,14 +169,15 @@ def summarizer_node(state: State):
     return {
         "messages": messages + [response]
     }
-    
 
 def should_continue(state: State):
     """Determine if we should continue to tools or end."""
     messages = state.get("messages", [])
+    # If the summarizer has marked the state as satisfied, exit
+    if state.get("summary") == "report_created":
+        return END
     if not messages:
         return END
-        
     last_message = messages[-1]
     if hasattr(last_message, 'tool_calls') and last_message.tool_calls:
         return "tools"

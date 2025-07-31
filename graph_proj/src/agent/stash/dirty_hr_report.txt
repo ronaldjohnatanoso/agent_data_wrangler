@@ -1,0 +1,21 @@
+### Professional Report on HR Data Analysis and Cleaning
+
+#### Trends and Insights:
+1. **Employee Age and Salary**: The dataset includes employees from various age groups, with salaries ranging broadly. The average age is around 36.6 years, and the average salary is approximately $74,746.
+2. **Extreme Bonus Values**: Bonus percentages had extreme values ranging from -18.5% to 60%. These were adjusted to fall within a more typical range.
+3. **Performance Scores**: The performance scores mostly range from 1 to 5, with an average score of about 3.45.
+4. **Attrition**: The dataset includes a 'left_company' column indicating whether employees have left the company, which could be useful for attrition analysis.
+
+#### Cleaning Steps Performed:
+1. **Handling Missing Values**:
+   - Filled missing values in 'age', 'salary', 'bonus_percent', and 'performance_score' using their respective median values.
+   - Dropped rows with missing 'last_promo_date' values as these could be crucial for analysis.
+
+2. **Handling Outliers**:
+   - Identified and corrected extreme outliers in 'age', 'salary', 'bonus_percent', and 'performance_score' by replacing them with NaN and then imputing with median values.
+
+#### Recommendations:
+- Further analysis could focus on the impact of promotions on employee retention, given the importance of 'last_promo_date'.
+- Consider analyzing the relationship between performance scores and bonuses to identify any potential biases.
+
+The data has been cleaned and saved to '/media/ronald/Kingston Shared/agent_data/graph_proj/src/agent/dirty_hr_clean_v2.csv'.

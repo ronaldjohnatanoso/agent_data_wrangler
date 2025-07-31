@@ -1,0 +1,24 @@
+**Professional Report on HR Data Cleaning and Analysis**
+
+**Trends and Insights:**
+- The dataset contained 500 entries with various columns such as employee ID, name, age, department, salary, join date, last promotion date, bonus percentage, performance score, and whether the employee left the company.
+- Most employees had a performance score around 3-4, suggesting a standard distribution of employee performance.
+- Salary figures ranged widely, with the average salary around $74,746.
+
+**Summary of Cleaning Steps Performed:**
+1. Missing values were filled:
+   - 'Age' was filled using the median due to its skewed distribution.
+   - 'Salary' was filled using the median for similar reasons.
+   - 'Bonus Percent' had missing values filled with the mean, as it is a percentage and likely normally distributed.
+   - 'Performance Score' was filled using the mode to maintain the most common performance rating.
+   - Rows with missing 'Last Promo Date' were dropped, as the date is critical for analysis.
+
+2. Extreme outliers were removed:
+   - 'Age' and 'Salary' outliers beyond three standard deviations from the mean were detected and removed, as they could skew analysis.
+
+**Remaining Issues and Recommendations for Further Analysis:**
+- The dataset now appears clean and free of extreme outliers. However, further checks could be conducted on other columns for potential inconsistencies.
+- Consider exploring the relationship between department and performance scores for departmental performance analysis.
+- Further analysis could also explore trends in promotion dates relative to performance scores to identify potential biases or trends in promotions.
+
+The cleaned data has been saved to '/media/ronald/Kingston Shared/agent_data/graph_proj/src/agent/dirty_hr_further_clean.csv' for any future analyses.

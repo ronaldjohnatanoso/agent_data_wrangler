@@ -1,0 +1,22 @@
+### Data Analysis and Cleaning Report
+
+#### Trends and Insights:
+- The dataset consists of 500 employee records with 10 columns including demographics, employment details, and performance metrics.
+- Initial exploration showed missing values primarily in `age`, `salary`, `bonus_percent`, `performance_score`, and `last_promo_date`.
+- The department 'Marketing' appears multiple times in the head of the dataset, suggesting it might have a significant number of employees.
+- Outlier analysis revealed extreme values in `age`, `salary`, and `bonus_percent`, particularly noting an age value of 91.0 and a negative `bonus_percent`.
+
+#### Cleaning Steps Performed:
+1. **Missing Values Handling:**
+   - `age`, `salary`, `bonus_percent`, and `performance_score` missing values were filled with their respective medians.
+   - `last_promo_date` missing values were filled with the earliest `join_date` as a placeholder for no promotion.
+2. **Outlier Removal:**
+   - Extreme outliers in `age`, `salary`, and `bonus_percent` were identified and removed if they were more than 3 standard deviations from the mean.
+3. **Final Dataset Integrity Check:**
+   - The final cleaned dataset contains 482 records with no missing values and has been saved as 'dirty_hr_final_clean.csv'.
+
+#### Recommendations:
+- Further analysis could look into the impact of `bonus_percent` on employee retention, as negative bonuses might indicate data entry errors or a punitive bonus system.
+- The dataset's temporal aspects, such as `join_date` and `last_promo_date`, could be explored to understand promotion timelines and their effects on `left_company` status.
+
+The cleaned data is ready for further analysis or modeling tasks.

@@ -1,0 +1,24 @@
+**Data Analysis and Cleaning Report**
+
+**Trends and Insights:**
+1. The dataset contains information about employees, including their age, department, salary, bonus percentage, and performance scores.
+2. The distribution of ages shows a broad range, with a notable maximum age of 91, which could indicate data entry errors.
+3. Bonus percentages also vary significantly, with some negative values suggesting possible data issues.
+4. Performance scores are generally distributed between 1 and 5.
+
+**Data Cleaning Steps Performed:**
+1. Missing values were filled: 
+   - 'age' was filled with the median value.
+   - 'salary' was filled with the mean value.
+   - 'last_promo_date' was filled with the mode value.
+   - 'bonus_percent' was filled with the mean value.
+   - 'performance_score' was filled with the median value.
+2. Outliers beyond 3 standard deviations from the mean were removed for 'age', 'salary', and 'bonus_percent'.
+3. Duplicate rows were checked, and none were found.
+
+**Remaining Issues and Recommendations:**
+1. The maximum age of 91 is an outlier and might need verification.
+2. Negative bonus percentages should be reviewed for potential data entry errors.
+3. Future analysis could involve investigating the relationship between performance scores and salary or bonuses to understand employee motivation better.
+
+Cleaned data is saved to 'dirty_hr_clean.csv'.
