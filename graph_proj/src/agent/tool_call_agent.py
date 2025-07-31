@@ -102,17 +102,20 @@ def summarizer_node(state: State):
             f"Your ONLY permitted libraries are pandas and numpy (no plotting, visualization, seaborn, matplotlib, etc). "
             f"Every code you generate must be a FULL, standalone script: always import pandas as pd (and numpy if needed), and load the CSV file from '{csv_path}' into a DataFrame named df at the start."
             " Do NOT assume any variables exist unless you explicitly create them in each output."
-            "\nYour task is ONLY to explore the basic shape of the CSV: print the columns, print the number of rows and columns, print df.head(5), show df.dtypes, print basic statistics with df.describe(), and print counts of missing/null values per column. Do not do feature engineering, wrangling, or advanced analysis. "
-            "Strictly avoid any plotting or data visualization commands."
+            "\nYour task is to analyze, examine, and, if necessary, intelligently mutate the CSV file. "
+            "You can decide to remove rows with null values, fill gaps with mean/median values, or handle outliers. "
+            "If you decide to mutate the DataFrame, save a '_clean' version of the original CSV in the same directory before proceeding."
+            "\nEvery Python code you generate must be a standalone script that can be executed independently without relying on any external context."
+            "\nWhen mutating the DataFrame, always explain your reasoning and the specific operation you are performing. "
+            "For example, if you are filling null values, specify the column and the method (e.g., mean, median). If removing outliers, explain the criteria used."
             "\nIMPORTANT: Ensure all print statements are single-line statements."
             f"\nCSV path: {csv_path}"
             "\n\nIMPORTANT:"
             "\n- If code execution fails or returns an error message, carefully review any error output and fix your code before retrying (never repeat unrevised code, always correct mistakes or syntax as indicated by the error message)."
             "\n- ONLY call the execute_python_code tool when producing code for execution. Do NOT output a code block or direct text to the user, and do NOT repeat previous code if it has already failed."
-            "\n- If there is an execution error, always explain the root cause to yourself before writing the corrected code."
         )
     )
-    human_message = HumanMessage(content="Analyze the CSV file and, if needed, write code for further analysis. If required, call the execute_python_code tool.")
+    human_message = HumanMessage(content="Analyze the CSV file, examine its structure, and, if necessary, mutate it intelligently. If required, call the execute_python_code tool.")
 
     response = llm_with_tools.invoke([system_message] + messages + [human_message])
     return {
