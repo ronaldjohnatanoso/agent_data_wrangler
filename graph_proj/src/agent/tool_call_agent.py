@@ -53,8 +53,23 @@ def execute_python_code(code: str) -> dict:
     except Exception as e:  
         return {"success": False, "stdout": "", "stderr": str(e)}
 
+@tool
+def create_report(report_content: str, csv_path: str) -> dict:
+    """
+    Saves the provided report_content to a .txt file in the same directory as the csv_path.
+    The report file will be named like the CSV but with '_report.txt' appended.
+    """
+    try:
+        base = os.path.splitext(csv_path)[0]
+        report_path = f"{base}_report.txt"
+        with open(report_path, "w") as f:
+            f.write(report_content)
+        return {"success": True, "report_path": report_path}
+    except Exception as e:
+        return {"success": False, "error": str(e)}
+
 # Bind tools to the LLM
-tools = [execute_python_code]
+tools = [execute_python_code, create_report]
 llm_with_tools = llm.bind_tools(tools)
 
 graph_builder = StateGraph(State)
@@ -71,9 +86,9 @@ def init_csv_path(state: State):
 
 def summarizer_node(state: State):
     """
-    Main director node for CSV analysis and intelligent cleaning.
+    Main director node for CSV analysis and cleaning.
     Uses message and execution result history as context for reasoning.
-    Now supports iterative code analysis, cleaning, and DataFrame mutation.
+    At the end, produces a comprehensive professional report based on the analysis and cleaning performed.
     """
     csv_path = state.get("csv_path", "")
     messages = state.get("messages", [])
@@ -94,7 +109,7 @@ def summarizer_node(state: State):
         exec_message = AIMessage(content=feedback)
         messages = messages + [exec_message]
 
-    # Enhanced system prompt for robust cleaning and mutation
+    # System prompt: restrict to cleaning only, and require a comprehensive report at the end
     system_message = SystemMessage(
         content=(
             f"You are a CSV analyst subprocess. "
@@ -104,15 +119,21 @@ def summarizer_node(state: State):
             "\n\nEach Python code you generate must be a fully standalone script, with all necessary imports and CSV loading included."
             "\n\nYour task is to:"
             "\n- Explore the basic shape of the CSV: print the columns, print the number of rows and columns, print df.head(5), show df.dtypes, print basic statistics with df.describe(), and print counts of missing/null values per column."
-            "\n- Intelligently decide if the data needs cleaning: for example, if there are missing values, decide whether to drop rows, fill with mean/median/mode, or otherwise impute. If there are outliers, consider removing or capping them. Justify your cleaning choices in your reasoning."
-            "\n- If you decide to mutate the DataFrame (e.g., by cleaning, filling, or dropping data), you MUST save the cleaned DataFrame to a new CSV file in the same directory as the original, with '_clean' appended before the '.csv' extension (e.g., 'dirty_clean.csv'). Never overwrite the original file."
+            "\n- Intelligently decide if the data needs cleaning: for example, if there are missing values, decide whether to drop rows, fill with mean/median/mode, or otherwise impute. If there are outliers, consider removing or capping them. Justify your cleaning and verification choices in your reasoning."
+            "\n- Perform all necessary cleaning, verification, and outlier handling until you are satisfied with the data quality."
+            "\n- When you are satisfied, save the final cleaned DataFrame to a new CSV file in the same directory as the original, with '_cleaned' appended before the '.csv' extension (e.g., 'dirty_cleaned.csv'). Never overwrite the original file."
             "\n- After each mutation, always reload the DataFrame from the latest clean CSV for further analysis or cleaning."
-            "\n- Continue iterative analysis and cleaning until you are satisfied with the data quality."
             "\n- All print statements must output only a single line (no multi-line prints)."
             "\n- Do NOT repeat code or outputs that have already been executed or printed. Keep track of what you have already analyzed or displayed, and only perform new actions or move on to the next step."
             "\n- Do NOT repeat the initial exploration (columns, shape, head, dtypes, describe, null counts) if it has already been done; proceed to cleaning or further analysis."
             "\n- Do NOT repeat code that has already failed or been executed. Only retry if you have revised the code based on the error."
             "\n- If a task is completed or cannot be fixed after a reasonable attempt, move on to the next logical step or finish."
+            "\n\nWhen you are fully satisfied with the cleaning and verification, produce a comprehensive professional report that includes:"
+            "\n- Trends, patterns, and qualitative insights you noticed in the data (based only on what you have seen in outputs)."
+            "\n- A detailed summary of the cleaning steps, verification, and outlier handling you performed."
+            "\n- Answers to common questions about the data, such as mean, standard deviation, min, max, and any other relevant statistics."
+            "\n- Any remaining issues or recommendations for further analysis."
+            "\nCall the create_report tool with your report content and the CSV path to save the report as a .txt file in the same directory as the CSV."
             "\n\nIMPORTANT:"
             "\n- If code execution fails or returns an error message (from either stdout or stderr), carefully review any error output and fix your code before retrying (never repeat unrevised code, always correct mistakes or syntax as indicated by the error message)."
             "\n- ONLY call the execute_python_code tool when producing code for execution. Do NOT output a code block or direct text to the user, and do NOT repeat previous code if it has already failed."
@@ -123,9 +144,9 @@ def summarizer_node(state: State):
     )
     human_message = HumanMessage(
         content=(
-            "Analyze the CSV file, decide if cleaning or mutation is needed, and if so, write code to perform it. "
-            "If you mutate the DataFrame, always save to a new '_clean' CSV and reload from it. "
-            "If required, call the execute_python_code tool."
+            "Analyze the CSV file, perform only cleaning (no feature engineering or dimensionality reduction), and if so, write code to perform it. "
+            "If you mutate the DataFrame, always save to a new '_cleaned' CSV and reload from it. "
+            "When you are satisfied, produce a comprehensive professional report with trends, insights, cleaning summary, statistics, and call the create_report tool to save it."
         )
     )
 
