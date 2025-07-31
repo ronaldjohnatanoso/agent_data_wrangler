@@ -74,10 +74,14 @@ llm_with_tools = llm.bind_tools(tools)
 
 graph_builder = StateGraph(State)
 
+# whatever name of the csv is rename it to dirty.csv here
+
+CSV_FILENAME = "dirty_hr.csv"  # Change this to use a different CSV file
+
 def init_csv_path(state: State):
     if state.get("csv_path") is None:
-        # the dirty.csv should be located in the same dir as this script
-        csv_path = os.path.join(os.path.dirname(__file__), "dirty.csv")
+        # the CSV file should be located in the same dir as this script
+        csv_path = os.path.join(os.path.dirname(__file__), CSV_FILENAME)
         # lets test if the file exists and continue, otherwise, stop the graph
         if not os.path.exists(csv_path):
             raise FileNotFoundError(f"CSV file not found: {csv_path}") 
@@ -88,7 +92,8 @@ def summarizer_node(state: State):
     """
     Main director node for CSV analysis and cleaning.
     Uses message and execution result history as context for reasoning.
-    At the end, produces a comprehensive professional report based on the analysis and cleaning performed.
+    At the end, produces a professional report based on the analysis and cleaning performed.
+    The summarizer will stop after the report is created.
     """
     csv_path = state.get("csv_path", "")
     messages = state.get("messages", [])
@@ -109,7 +114,15 @@ def summarizer_node(state: State):
         exec_message = AIMessage(content=feedback)
         messages = messages + [exec_message]
 
-    # System prompt: restrict to cleaning only, and require a comprehensive report at the end
+    # Check if a final report has already been created (by checking for a create_report tool call)
+    for msg in reversed(messages):
+        if hasattr(msg, "tool_calls"):
+            for call in getattr(msg, "tool_calls", []):
+                if getattr(call, "name", None) == "create_report":
+                    # Report has been created, summarizer should exit
+                    return {"messages": messages}
+
+    # System prompt: restrict to cleaning only, and require a report at the end
     system_message = SystemMessage(
         content=(
             f"You are a CSV analyst subprocess. "
@@ -119,19 +132,19 @@ def summarizer_node(state: State):
             "\n\nEach Python code you generate must be a fully standalone script, with all necessary imports and CSV loading included."
             "\n\nYour task is to:"
             "\n- Explore the basic shape of the CSV: print the columns, print the number of rows and columns, print df.head(5), show df.dtypes, print basic statistics with df.describe(), and print counts of missing/null values per column."
-            "\n- Intelligently decide if the data needs cleaning: for example, if there are missing values, decide whether to drop rows, fill with mean/median/mode, or otherwise impute. If there are outliers, consider removing or capping them. Justify your cleaning and verification choices in your reasoning."
-            "\n- Perform all necessary cleaning, verification, and outlier handling until you are satisfied with the data quality."
-            "\n- When you are satisfied, save the final cleaned DataFrame to a new CSV file in the same directory as the original, with '_cleaned' appended before the '.csv' extension (e.g., 'dirty_cleaned.csv'). Never overwrite the original file."
+            "\n- Intelligently decide if the data needs cleaning: for example, if there are missing values, decide whether to drop rows, fill with mean/median/mode, or otherwise impute. If there are outliers, only identify and handle extreme outliers (e.g., values far outside the normal range, such as >3 standard deviations from the mean). Do not spend too long on outlier detection."
+            "\n- Do NOT perform feature engineering, dimensionality reduction, or advanced transformations. Only perform cleaning."
+            "\n- If you decide to mutate the DataFrame (e.g., by cleaning, filling, or dropping data), you MUST save the cleaned DataFrame to a new CSV file in the same directory as the original, with '_clean' appended before the '.csv' extension (e.g., 'dirty_clean.csv'). Never overwrite the original file."
             "\n- After each mutation, always reload the DataFrame from the latest clean CSV for further analysis or cleaning."
+            "\n- Continue iterative analysis and cleaning until you are satisfied with the data quality."
             "\n- All print statements must output only a single line (no multi-line prints)."
             "\n- Do NOT repeat code or outputs that have already been executed or printed. Keep track of what you have already analyzed or displayed, and only perform new actions or move on to the next step."
             "\n- Do NOT repeat the initial exploration (columns, shape, head, dtypes, describe, null counts) if it has already been done; proceed to cleaning or further analysis."
             "\n- Do NOT repeat code that has already failed or been executed. Only retry if you have revised the code based on the error."
             "\n- If a task is completed or cannot be fixed after a reasonable attempt, move on to the next logical step or finish."
-            "\n\nWhen you are fully satisfied with the cleaning and verification, produce a comprehensive professional report that includes:"
-            "\n- Trends, patterns, and qualitative insights you noticed in the data (based only on what you have seen in outputs)."
-            "\n- A detailed summary of the cleaning steps, verification, and outlier handling you performed."
-            "\n- Answers to common questions about the data, such as mean, standard deviation, min, max, and any other relevant statistics."
+            "\n\nAt the end of your analysis and cleaning, produce a professional report summarizing:"
+            "\n- Any trends, patterns, or qualitative insights you noticed in the data (based only on what you have seen in outputs) an example: sales has high bonuses, customer support has high attrition, lower performance often lacks bonuses."
+            "\n- A summary of the cleaning steps you performed."
             "\n- Any remaining issues or recommendations for further analysis."
             "\nCall the create_report tool with your report content and the CSV path to save the report as a .txt file in the same directory as the CSV."
             "\n\nIMPORTANT:"
@@ -145,8 +158,8 @@ def summarizer_node(state: State):
     human_message = HumanMessage(
         content=(
             "Analyze the CSV file, perform only cleaning (no feature engineering or dimensionality reduction), and if so, write code to perform it. "
-            "If you mutate the DataFrame, always save to a new '_cleaned' CSV and reload from it. "
-            "When you are satisfied, produce a comprehensive professional report with trends, insights, cleaning summary, statistics, and call the create_report tool to save it."
+            "If you mutate the DataFrame, always save to a new '_clean' CSV and reload from it. "
+            "At the end, produce a professional report with trends, insights, and cleaning summary, and call the create_report tool to save it."
         )
     )
 
@@ -169,13 +182,31 @@ def should_continue(state: State):
 
 tool_node = ToolNode(tools)
 
+def log_final_messages(state: State):
+    """
+    Called when the graph reaches END. Logs all messages in the state to a file for auditing/debugging.
+    The log file is saved in the same directory as the CSV.
+    """
+    csv_path = state.get("csv_path", "")
+    log_dir = os.path.dirname(csv_path) if csv_path else os.path.dirname(__file__)
+    log_path = os.path.join(log_dir, "final_messages.log")
+    try:
+        with open(log_path, "w") as f:
+            for msg in state.get("messages", []):
+                f.write(str(msg) + "\n\n")
+    except Exception as e:
+        print(f"Failed to log messages: {e}")
+    return state
+
 graph_builder.add_node("init_csv_path", init_csv_path)  
 graph_builder.add_node("summarizer", summarizer_node)
 graph_builder.add_node("tools", tool_node)
+graph_builder.add_node("log_final_messages", log_final_messages)
 
 graph_builder.add_edge(START, "init_csv_path")  
 graph_builder.add_edge("init_csv_path", "summarizer")  
-graph_builder.add_conditional_edges("summarizer", should_continue, {"tools": "tools", END: END})
+graph_builder.add_conditional_edges("summarizer", should_continue, {"tools": "tools", END: "log_final_messages"})
 graph_builder.add_edge("tools", "summarizer")
+graph_builder.add_edge("log_final_messages", END)
 
 graph = graph_builder.compile()

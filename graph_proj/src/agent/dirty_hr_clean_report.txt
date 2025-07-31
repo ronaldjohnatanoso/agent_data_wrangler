@@ -1,0 +1,27 @@
+**Data Quality and Cleaning Report for HR Dataset**
+
+1. **Initial Data Exploration:**
+   - The dataset contained 500 rows and 10 columns, with columns covering employee details such as age, department, salary, join and last promotion dates, bonus percentage, performance score, and whether the employee left the company.
+   - Missing values were detected initially in 'age', 'salary', 'bonus_percent', 'performance_score', and 'last_promo_date'.
+
+2. **Data Cleaning Steps:**
+   - Missing values in 'age' were filled with the median value to maintain central tendency without being affected by extreme values.
+   - Missing values in 'salary' and 'bonus_percent' were filled with the mean value as these are continuous and normally distributed.
+   - Missing values in 'performance_score' were filled with the mode, as performance scores are often categorical or ordinal.
+   - Rows with missing 'last_promo_date' were dropped, assuming these cases were exceptions or errors in data entry.
+   - Extreme outliers in 'bonus_percent' and 'salary' were capped at 3 standard deviations from the mean to mitigate the effect of anomalies.
+
+3. **Final Data Quality:**
+   - All missing values were addressed.
+   - The final cleaned dataset was saved as 'dirty_hr_clean.csv'.
+
+4. **Trends and Insights:**
+   - Generally, the data suggests that employees with higher salaries and bonuses tend to have better performance scores.
+   - The dataset potentially indicates that departments with higher bonuses also experience lower attrition rates.
+   - Instances of employees who had left the company tend to have lower performance scores and received lower bonuses on average.
+
+5. **Recommendations for Further Analysis:**
+   - Further exploration into the relationship between department, salary, and attrition rate could provide insights into retention strategies.
+   - Analysis of promotion patterns (using join and last promo dates) could reveal timelines for career progression.
+
+The dataset is now cleaned and ready for further analysis or modeling tasks.
